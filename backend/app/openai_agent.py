@@ -997,13 +997,615 @@
 
 
 
+# import os
+# import logging
+# from openai import OpenAI
+# from dotenv import load_dotenv
+# from app.db import execute_query
+# from app.utils import get_stock_price, get_currency_exchange_rate
+# import json 
+
+# # Load environment variables
+# load_dotenv()
+
+# logger = logging.getLogger(__name__)
+# logging.basicConfig(level=logging.INFO)
+
+# # Initialize OpenAI client
+# # Ensure OPENAI_API_KEY is set in your .env file
+# client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+# # --- Define Agent Tools (Python functions - these are NOT directly callable by AI in this setup) ---
+# # These functions are here for completeness and could be called by other parts of your backend
+# # (e.g., directly by Flask API endpoints from the frontend forms), but not directly by the AI via tool-calling.
+
+# def add_expense_tool(user_id: int, amount: float, category: str, description: str, expense_date: str):
+#     """
+#     Adds a new personal expense for a user.
+#     Args:
+#         user_id (int): The ID of the user.
+#         amount (float): The amount of the expense.
+#         category (str): The category of the expense (e.g., 'Food', 'Transport', 'Utilities').
+#         description (str): A brief description of the expense.
+#         expense_date (str): The date of the expense inYYYY-MM-DD format.
+#     Returns:
+#         dict: A dictionary indicating success or failure.
+#     """
+#     logger.info("Agent tool: add_expense called with user_id=%s, amount=%s, category=%s, date=%s",
+#                 user_id, amount, category, expense_date)
+#     try:
+#         query = "INSERT INTO T_SNG_Expenses (user_id, amount, category, description, expense_date) VALUES (?, ?, ?, ?, ?)"
+#         execute_query(query, (user_id, amount, category, description, expense_date))
+#         return {"status": "success", "message": f"Expense of {amount} in {category} added for user {user_id}."}
+#     except Exception as e:
+#         logger.exception("Error in add_expense_tool:")
+#         return {"status": "error", "message": f"Failed to add expense: {str(e)}"}
+
+# def set_budget_tool(user_id: int, category: str, amount: float, start_date: str, end_date: str):
+#     """
+#     Sets a new budget for a user in a specific category for a given period.
+#     Args:
+#         user_id (int): The ID of the user.
+#         category (str): The category for the budget (e.g., 'Groceries', 'Entertainment').
+#         amount (float): The budgeted amount.
+#         start_date (str): The start date of the budget inYYYY-MM-DD format.
+#         end_date (str): The end date of the budget inYYYY-MM-DD format.
+#     Returns:
+#         dict: A dictionary indicating success or failure.
+#     """
+#     logger.info("Agent tool: set_budget called with user_id=%s, category=%s, amount=%s, start=%s, end=%s",
+#                 user_id, category, amount, start_date, end_date)
+#     try:
+#         query = "INSERT INTO T_SNG_Budgets (user_id, category, amount, start_date, end_date) VALUES (?, ?, ?, ?, ?)"
+#         execute_query(query, (user_id, category, amount, start_date, end_date))
+#         return {"status": "success", "message": f"Budget of {amount} for {category} set for user {user_id}."}
+#     except Exception as e:
+#         logger.exception("Error in set_budget_tool:")
+#         return {"status": "error", "message": f"Failed to set budget: {str(e)}"}
+
+# def get_expenses_tool(user_id: int, category: str = None, start_date: str = None, end_date: str = None):
+#     """
+#     Retrieves a user's expenses, optionally filtered by category and date range.
+#     Args:
+#         user_id (int): The ID of the user.
+#         category (str, optional): Filter expenses by category.
+#         start_date (str, optional): Start date for filtering inYYYY-MM-DD format.
+#         end_date (str, optional): End date for filtering inYYYY-MM-DD format.
+#     Returns:
+#         list: A list of expense dictionaries.
+#     """
+#     logger.info("Agent tool: get_expenses called for user %s, category=%s, start=%s, end=%s",
+#                 user_id, category, start_date, end_date)
+#     try:
+#         sql_query = "SELECT expense_id, user_id, amount, category, description, expense_date FROM T_SNG_Expenses WHERE user_id = ?"
+#         params = [user_id]
+        
+#         if category:
+#             sql_query += " AND category = ?"
+#             params.append(category)
+#         if start_date:
+#             sql_query += " AND expense_date >= ?"
+#             params.append(start_date)
+#         if end_date:
+#             sql_query += " AND expense_date <= ?"
+#             params.append(end_date)
+        
+#         expenses = execute_query(sql_query, tuple(params), fetch_type='all')
+#         if expenses:
+#             for exp in expenses:
+#                 if 'expense_date' in exp and isinstance(exp['expense_date'], (type(None), type(exp['expense_date']))): # Check if it's a date object
+#                     exp['expense_date'] = exp['expense_date'].isoformat() if exp['expense_date'] else None
+#             logger.info("Fetched %d expenses for user %s.", len(expenses), user_id)
+#             return {"status": "success", "data": expenses}
+#         else:
+#             logger.info("No expenses found for user %s with given filters.", user_id)
+#             return {"status": "success", "data": [], "message": "No expenses found."}
+#     except Exception as e:
+#         logger.exception("Error in get_expenses_tool:")
+#         return {"status": "error", "message": f"Failed to retrieve expenses: {str(e)}"}
+
+# def get_budget_status_tool(user_id: int, category: str = None):
+#     """
+#     Retrieves the budget status for a user, optionally by category.
+#     Shows budgeted, actual spent, and remaining amounts.
+#     Args:
+#         user_id (int): The ID of the user.
+#         category (str, optional): Filter budget status by category.
+#     Returns:
+#         list: A list of budget status dictionaries.
+#     """
+#     logger.info("Agent tool: get_budget_status called for user %s, category=%s", user_id, category)
+#     try:
+#         sql_query = """
+#         SELECT user_id, category, budgeted_amount, actual_spent, remaining_amount, start_date, end_date
+#         FROM V_SNG_BudgetStatus_L1
+#         WHERE user_id = ?
+#         """
+#         params = [user_id]
+#         if category:
+#             sql_query += " AND category = ?"
+#             params.append(category)
+        
+#         budgets = execute_query(sql_query, tuple(params), fetch_type='all')
+#         if budgets:
+#             for bgt in budgets:
+#                 if 'start_date' in bgt and isinstance(bgt['start_date'], (type(None), type(bgt['start_date']))):
+#                     bgt['start_date'] = bgt['start_date'].isoformat() if bgt['start_date'] else None
+#                 if 'end_date' in bgt and isinstance(bgt['end_date'], (type(None), type(bgt['end_date']))):
+#                     bgt['end_date'] = bgt['end_date'].isoformat() if bgt['end_date'] else None
+#             logger.info("Fetched %d budgets for user %s.", len(budgets), user_id)
+#             return {"status": "success", "data": budgets}
+#         else:
+#             logger.info("No budgets found for user %s with given filters.", user_id)
+#             return {"status": "success", "data": [], "message": "No budgets found."}
+#     except Exception as e:
+#         logger.exception("Error in get_budget_status_tool:")
+#         return {"status": "error", "message": f"Failed to retrieve budget status: {str(e)}"}
+
+# def get_stock_price_tool(symbol: str):
+#     """
+#     Retrieves the current stock price for a given stock ticker symbol (e.g., AAPL, GOOGL).
+#     Args:
+#         symbol (str): The stock ticker symbol.
+#     Returns:
+#         dict: A dictionary containing the stock symbol, price, and currency, or an error message.
+#     """
+#     logger.info("Agent tool: get_stock_price_tool called for symbol: %s", symbol)
+#     return get_stock_price(symbol)
+
+# def get_currency_exchange_rate_tool(from_currency: str, to_currency: str):
+#     """
+#     Retrieves the current exchange rate between two currency codes (e.g., USD, EUR, LKR).
+#     Args:
+#         from_currency (str): The currency code to convert from (e.g., "USD").
+#         to_currency (str): The currency code to convert to (e.g., "LKR").
+#     Returns:
+#         dict: A dictionary containing the 'from' currency, 'to' currency, and the exchange rate, or an error message.
+#     """
+#     logger.info("Agent tool: get_currency_exchange_rate_tool called from %s to %s", from_currency, to_currency)
+#     return get_currency_exchange_rate(from_currency, to_currency)
+
+# # --- OpenAI Agent Orchestration ---
+
+# def chat_with_agent(user_message: str, user_id: int):
+#     """
+#     Sends a user message to the OpenAI agent and gets a response.
+#     The agent uses defined tools to answer queries.
+#     Args:
+#         user_message (str): The message from the user.
+#         user_id (int): The ID of the current user.
+#     Returns:
+#         str: The agent's response.
+#     """
+#     logger.info("Chat with agent: User %s message: %s", user_id, user_message)
+
+#     # Define the tools available to the Responses API call
+#     # IMPORTANT: Only native OpenAI tools (web_search_preview, file_search, code_interpreter)
+#     # can be directly passed to client.responses.create in this manner.
+#     # Custom function tools are NOT supported here.
+#     all_tools_for_openai = [
+#         {"type": "web_search_preview"}, # As per documentation
+#         {"type": "file_search", "vector_store_ids": ["vs_6836df8f306881919cf54b2d7e654e4f"]} # As per documentation
+#     ]
+
+#     # The 'messages' list is used for the model's internal context and conversation flow.
+#     # The 'input' parameter is the specific user query for the current turn.
+#     # For client.responses.create, the conversation history is implicitly handled by the model
+#     # based on the 'input' and the tools.
+#     # We will use the user_message as the primary input.
+
+#     try:
+#         # Call the Responses API
+#         response_obj = client.responses.create(
+#             model="gpt-4o-mini", # Use a model that supports these tools
+#             input=user_message, # The explicit input for the current turn
+#             tools=all_tools_for_openai,
+#             tool_choice="auto" # Allow the model to choose a tool or respond directly
+#         )
+
+#         # Process the outputs from the Responses API
+#         final_response_content = ""
+        
+#         # Iterate through the output items to find the assistant's message
+#         for output_item in response_obj.output:
+#             if output_item.type == "message" and output_item.role == "assistant":
+#                 # This is the model's direct text response
+#                 final_response_content = output_item.content[0].text
+#                 # Handle citations if present in output_item.content[0].annotations
+#                 if output_item.content[0].annotations:
+#                     citations = []
+#                     for annotation in output_item.content[0].annotations:
+#                         if annotation.type == 'url_citation' and annotation.url:
+#                             citations.append(f" [Source: {annotation.title or annotation.url}]")
+#                         elif annotation.type == 'file_citation' and annotation.filename:
+#                             citations.append(f" [File: {annotation.filename}]")
+#                     if citations:
+#                         final_response_content += "".join(citations)
+#                 break # Found the final message, exit loop
+            
+#             # Log tool calls made by OpenAI's native tools (for debugging)
+#             elif output_item.type == "web_search_call":
+#                 logger.info("Web search tool called by OpenAI. Status: %s", output_item.status)
+#             elif output_item.type == "file_search_call":
+#                 logger.info("File search tool called by OpenAI. Status: %s", output_item.status)
+#             # Note: client.responses.create does not return 'tool_code' for custom functions.
+#             # If the model attempts to call a custom function, it won't be executed here.
+
+#         return final_response_content if final_response_content else "I couldn't generate a response."
+
+#     except Exception as e:
+#         logger.exception("Error in chat_with_agent:")
+#         # Provide a more informative error for the user
+#         return f"I'm sorry, I encountered an error: {str(e)}. This might be due to an issue with the AI's tool usage or API configuration. Please try again."
+
+
+
+
+
+
+
+
+
+
+# import os
+# import logging
+# from openai import OpenAI
+# from dotenv import load_dotenv
+# from app.db import execute_query
+# from app.utils import get_stock_price, get_currency_exchange_rate
+# import json
+# import re # Import regex module
+# from jsonschema import validate, ValidationError # For validating AI's JSON output
+
+# # Load environment variables
+# load_dotenv()
+
+# logger = logging.getLogger(__name__)
+# logging.basicConfig(level=logging.INFO)
+
+# # Initialize OpenAI client
+# client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+# # --- System Prompt Definition (CRITICAL for AI behavior) ---
+# # This prompt instructs the AI on how to format its output when it wants to call a custom function.
+# # It MUST be very precise.
+# SYSTEM_PROMPT = """
+# You are a personal finance chatbot. Your current user ID is {user_id}.
+# Your primary goal is to help users manage their finances.
+
+# When the user asks to perform a specific action, you MUST respond with a JSON object.
+# The JSON object must contain an "action" key and other keys for its arguments.
+# Here are the actions and their required JSON formats:
+
+# 1.  To add an expense:
+#     {{"action": "add_expense", "amount": <float>, "category": "<string>", "description": "<string>", "expense_date": "<YYYY-MM-DD>"}}
+#     Example: {{"action": "add_expense", "amount": 25.50, "category": "Food", "description": "Lunch", "expense_date": "2025-05-30"}}
+
+# 2.  To set a budget:
+#     {{"action": "set_budget", "category": "<string>", "amount": <float>, "start_date": "<YYYY-MM-DD>", "end_date": "<YYYY-MM-DD>"}}
+#     Example: {{"action": "set_budget", "category": "Groceries", "amount": 300.00, "start_date": "2025-06-01", "end_date": "2025-06-30"}}
+
+# 3.  To get stock price:
+#     {{"action": "get_stock_price", "symbol": "<string>"}}
+#     Example: {{"action": "get_stock_price", "symbol": "AAPL"}}
+
+# 4.  To get currency exchange rate:
+#     {{"action": "get_currency_exchange_rate", "from_currency": "<string>", "to_currency": "<string>"}}
+#     Example: {{"action": "get_currency_exchange_rate", "from_currency": "EUR", "to_currency": "USD"}}
+
+# 5.  For financial news or general tips (web search):
+#     Respond with the original user query as plain text. The system will then perform a web search based on that text.
+
+# 6.  For information from saved documents (file search):
+#     Respond with the original user query as plain text. The system will then perform a file search based on that text.
+
+# If the user's request does not clearly map to one of these actions, or if you need more information, ask clarifying questions in plain text.
+# Always use the provided user_id ({user_id}) when performing actions.
+# """
+
+# # --- JSON Schemas for AI Output Validation (for parsing AI's generated JSON) ---
+# ADD_EXPENSE_SCHEMA = {
+#     "type": "object",
+#     "properties": {
+#         "action": {"type": "string", "const": "add_expense"},
+#         "amount": {"type": "number"},
+#         "category": {"type": "string"},
+#         "description": {"type": "string"},
+#         "expense_date": {"type": "string", "format": "date", "pattern": r"^\d{4}-\d{2}-\d{2}$"}
+#     },
+#     "required": ["action", "amount", "category", "expense_date"],
+#     "additionalProperties": False # Ensure no extra properties are added
+# }
+
+# SET_BUDGET_SCHEMA = {
+#     "type": "object",
+#     "properties": {
+#         "action": {"type": "string", "const": "set_budget"},
+#         "category": {"type": "string"},
+#         "amount": {"type": "number"},
+#         "start_date": {"type": "string", "format": "date", "pattern": r"^\d{4}-\d{2}-\d{2}$"},
+#         "end_date": {"type": "string", "format": "date", "pattern": r"^\d{4}-\d{2}-\d{2}$"}
+#     },
+#     "required": ["action", "category", "amount", "start_date", "end_date"],
+#     "additionalProperties": False
+# }
+
+# GET_STOCK_PRICE_SCHEMA = {
+#     "type": "object",
+#     "properties": {
+#         "action": {"type": "string", "const": "get_stock_price"},
+#         "symbol": {"type": "string"}
+#     },
+#     "required": ["action", "symbol"],
+#     "additionalProperties": False
+# }
+
+# GET_CURRENCY_RATE_SCHEMA = {
+#     "type": "object",
+#     "properties": {
+#         "action": {"type": "string", "const": "get_currency_exchange_rate"},
+#         "from_currency": {"type": "string"},
+#         "to_currency": {"type": "string"}
+#     },
+#     "required": ["action", "from_currency", "to_currency"],
+#     "additionalProperties": False
+# }
+
+# # --- Custom Function Implementations (these are called by our Python code, not AI directly) ---
+
+# def add_expense_tool(user_id: int, amount: float, category: str, description: str, expense_date: str):
+#     logger.info("Custom tool: add_expense called with user_id=%s, amount=%s, category=%s, date=%s",
+#                 user_id, amount, category, expense_date)
+#     try:
+#         query = "INSERT INTO T_SNG_Expenses (user_id, amount, category, description, expense_date) VALUES (?, ?, ?, ?, ?)"
+#         execute_query(query, (user_id, amount, category, description, expense_date))
+#         return {"status": "success", "message": f"Expense of {amount} in {category} added for user {user_id}."}
+#     except Exception as e:
+#         logger.exception("Error in add_expense_tool:")
+#         return {"status": "error", "message": f"Failed to add expense: {str(e)}"}
+
+# def set_budget_tool(user_id: int, category: str, amount: float, start_date: str, end_date: str):
+#     logger.info("Custom tool: set_budget called with user_id=%s, category=%s, amount=%s, start=%s, end=%s",
+#                 user_id, category, amount, start_date, end_date)
+#     try:
+#         query = "INSERT INTO T_SNG_Budgets (user_id, category, amount, start_date, end_date) VALUES (?, ?, ?, ?, ?)"
+#         execute_query(query, (user_id, category, amount, start_date, end_date))
+#         return {"status": "success", "message": f"Budget of {amount} for {category} set for user {user_id}."}
+#     except Exception as e:
+#         logger.exception("Error in set_budget_tool:")
+#         return {"status": "error", "message": f"Failed to set budget: {str(e)}"}
+
+# def get_expenses_tool(user_id: int, category: str = None, start_date: str = None, end_date: str = None):
+#     logger.info("Custom tool: get_expenses called for user %s, category=%s, start=%s, end=%s",
+#                 user_id, category, start_date, end_date)
+#     try:
+#         sql_query = "SELECT expense_id, user_id, amount, category, description, expense_date FROM T_SNG_Expenses WHERE user_id = ?"
+#         params = [user_id]
+        
+#         if category:
+#             sql_query += " AND category = ?"
+#             params.append(category)
+#         if start_date:
+#             sql_query += " AND expense_date >= ?"
+#             params.append(start_date)
+#         if end_date:
+#             sql_query += " AND expense_date <= ?"
+#             params.append(end_date)
+        
+#         expenses = execute_query(sql_query, tuple(params), fetch_type='all')
+#         if expenses:
+#             for exp in expenses:
+#                 if 'expense_date' in exp and isinstance(exp['expense_date'], (type(None), type(exp['expense_date']))):
+#                     exp['expense_date'] = exp['expense_date'].isoformat() if exp['expense_date'] else None
+#             logger.info("Fetched %d expenses for user %s.", len(expenses), user_id)
+#             return {"status": "success", "data": expenses}
+#         else:
+#             logger.info("No expenses found for user %s with given filters.", user_id)
+#             return {"status": "success", "data": [], "message": "No expenses found."}
+#     except Exception as e:
+#         logger.exception("Error in get_expenses_tool:")
+#         return {"status": "error", "message": f"Failed to retrieve expenses: {str(e)}"}
+
+# def get_budget_status_tool(user_id: int, category: str = None):
+#     logger.info("Custom tool: get_budget_status called for user %s, category=%s", user_id, category)
+#     try:
+#         sql_query = """
+#         SELECT user_id, category, budgeted_amount, actual_spent, remaining_amount, start_date, end_date
+#         FROM V_SNG_BudgetStatus_L1
+#         WHERE user_id = ?
+#         """
+#         params = [user_id]
+#         if category:
+#             sql_query += " AND category = ?"
+#             params.append(category)
+        
+#         budgets = execute_query(sql_query, tuple(params), fetch_type='all')
+#         if budgets:
+#             for bgt in budgets:
+#                 if 'start_date' in bgt and isinstance(bgt['start_date'], (type(None), type(bgt['start_date']))):
+#                     bgt['start_date'] = bgt['start_date'].isoformat() if bgt['start_date'] else None
+#                 if 'end_date' in bgt and isinstance(bgt['end_date'], (type(None), type(bgt['end_date']))):
+#                     bgt['end_date'] = bgt['end_date'].isoformat() if bgt['end_date'] else None
+#             logger.info("Fetched %d budgets for user %s.", len(budgets), user_id)
+#             return {"status": "success", "data": budgets}
+#         else:
+#             logger.info("No budgets found for user %s with given filters.", user_id)
+#             return {"status": "success", "data": [], "message": "No budgets found."}
+#     except Exception as e:
+#         logger.exception("Error in get_budget_status_tool:")
+#         return {"status": "error", "message": f"Failed to retrieve budget status: {str(e)}"}
+
+# def get_stock_price_from_util(symbol: str): # Renamed to avoid conflict with tool name
+#     """
+#     Retrieves the current stock price for a given symbol.
+#     This is a MOCK function, called by our parsing logic.
+#     """
+#     logger.info("Custom tool: get_stock_price_from_util called for symbol: %s", symbol)
+#     return get_stock_price(symbol)
+
+# def get_currency_exchange_rate_from_util(from_currency: str, to_currency: str): # Renamed
+#     """
+#     Retrieves the current exchange rate between two currencies.
+#     This is a MOCK function, called by our parsing logic.
+#     """
+#     logger.info("Custom tool: get_currency_exchange_rate_from_util called from %s to %s", from_currency, to_currency)
+#     return get_currency_exchange_rate(from_currency, to_currency)
+
+# # --- OpenAI Agent Orchestration ---
+
+# def chat_with_agent(user_message: str, user_id: int):
+#     """
+#     Sends a user message to the OpenAI agent and gets a response.
+#     The agent is instructed to output JSON for custom actions,
+#     or plain text for web/file search.
+#     Args:
+#         user_message (str): The message from the user.
+#         user_id (int): The ID of the current user.
+#     Returns:
+#         str: The agent's response.
+#     """
+#     logger.info("Chat with agent: User %s message: %s", user_id, user_message)
+
+#     # The full system prompt with instructions for AI-generated JSON
+#     full_system_prompt = SYSTEM_PROMPT.format(user_id=user_id)
+
+#     # Define the tools available to the Responses API call
+#     # IMPORTANT: Only native OpenAI tools (web_search_preview, file_search, code_interpreter)
+#     # can be directly passed to client.responses.create in this manner.
+#     # Our custom functions are NOT listed here.
+#     all_native_openai_tools = [
+#         {"type": "web_search_preview"}, # As per documentation
+#         {"type": "file_search", "vector_store_ids": ["vs_6836df8f306881919cf54b2d7e654e4f"]} # As per documentation
+#     ]
+
+#     try:
+#         # First call to Responses API: AI processes the user message and system prompt.
+#         # It will either generate plain text or the instructed JSON.
+#         response_obj = client.responses.create(
+#             model="gpt-4o-mini", # Use a model that supports these tools
+#             input=f"{full_system_prompt}\nUser: {user_message}", # Combine prompt and user message
+#             tools=all_native_openai_tools, # Only native tools here
+#             tool_choice="auto" # Allow the model to choose native tools or respond directly
+#         )
+
+#         final_response_content = "I couldn't generate a response." # Default error message
+
+#         # Process the outputs from the Responses API
+#         for output_item in response_obj.output:
+#             if output_item.type == "message" and output_item.role == "assistant":
+#                 ai_generated_text = output_item.content[0].text
+#                 logger.info("AI generated raw text: %s", ai_generated_text)
+
+#                 # --- Attempt to parse AI's text output as a custom function call (the workaround) ---
+#                 try:
+#                     # Use regex to find a potential JSON object in the AI's response
+#                     json_match = re.search(r'\{.*?\}', ai_generated_text, re.DOTALL)
+#                     if json_match:
+#                         potential_json = json_match.group(0)
+#                         ai_action = json.loads(potential_json)
+#                         logger.info("Attempted to parse AI output as JSON action: %s", ai_action)
+
+#                         # Map parsed action to our internal Python functions
+#                         # and validate against schema
+#                         if ai_action.get("action") == "add_expense":
+#                             validate(instance=ai_action, schema=ADD_EXPENSE_SCHEMA)
+#                             result = add_expense_tool(user_id=user_id, **{k: v for k, v in ai_action.items() if k != 'action'})
+#                             final_response_content = f"Expense added successfully! {result.get('message', '')}"
+#                             if result.get('status') == 'error':
+#                                 final_response_content = f"Error adding expense: {result.get('message', 'Unknown error')}"
+
+#                         elif ai_action.get("action") == "set_budget":
+#                             validate(instance=ai_action, schema=SET_BUDGET_SCHEMA)
+#                             result = set_budget_tool(user_id=user_id, **{k: v for k, v in ai_action.items() if k != 'action'})
+#                             final_response_content = f"Budget set successfully! {result.get('message', '')}"
+#                             if result.get('status') == 'error':
+#                                 final_response_content = f"Error setting budget: {result.get('message', 'Unknown error')}"
+
+#                         elif ai_action.get("action") == "get_stock_price":
+#                             validate(instance=ai_action, schema=GET_STOCK_PRICE_SCHEMA)
+#                             result = get_stock_price_from_util(**{k: v for k, v in ai_action.items() if k != 'action'})
+#                             if result.get('error'):
+#                                 final_response_content = f"Could not get stock price: {result['error']}"
+#                             else:
+#                                 final_response_content = f"The current price of {result['symbol']} is {result['price']} {result['currency']}."
+
+#                         elif ai_action.get("action") == "get_currency_exchange_rate":
+#                             validate(instance=ai_action, schema=GET_CURRENCY_RATE_SCHEMA)
+#                             result = get_currency_exchange_rate_from_util(**{k: v for k, v in ai_action.items() if k != 'action'})
+#                             if result.get('error'):
+#                                 final_response_content = f"Could not get exchange rate: {result['error']}"
+#                             else:
+#                                 final_response_content = f"The exchange rate from {result['from']} to {result['to']} is {result['rate']}."
+#                         else:
+#                             # If it's JSON but not a recognized action, treat as plain text
+#                             final_response_content = ai_generated_text
+#                     else:
+#                         # No JSON found, treat as plain text
+#                         final_response_content = ai_generated_text
+
+#                 except (json.JSONDecodeError, ValidationError) as parse_error:
+#                     logger.warning("AI did not output valid JSON for action or schema mismatch: %s | Error: %s", ai_generated_text, parse_error)
+#                     final_response_content = f"I received an unexpected format from the AI. Please try rephrasing your request for custom actions. Original AI response: {ai_generated_text}"
+#                 except Exception as e:
+#                     logger.exception("Error during custom action execution after AI parse:")
+#                     final_response_content = f"An internal error occurred while processing your request: {str(e)}. Please try again."
+
+#                 # Handle citations from native tools if present in output_item.content[0].annotations
+#                 if output_item.content[0].annotations:
+#                     citations = []
+#                     for annotation in output_item.content[0].annotations:
+#                         if annotation.type == 'url_citation' and annotation.url:
+#                             citations.append(f" [Source: {annotation.title or annotation.url}]")
+#                         elif annotation.type == 'file_citation' and annotation.filename:
+#                             citations.append(f" [File: {annotation.filename}]")
+#                     if citations:
+#                         final_response_content += "".join(citations)
+                
+#                 break # Processed the main message, exit loop
+
+#             # Log native tool calls made by OpenAI (for debugging)
+#             elif output_item.type == "web_search_call":
+#                 logger.info("Web search tool called by OpenAI. Status: %s", output_item.status)
+#             elif output_item.type == "file_search_call":
+#                 logger.info("File search tool called by OpenAI. Status: %s", output_item.status)
+        
+#         return final_response_content
+
+#     except Exception as e:
+#         logger.exception("Error in chat_with_agent (top level):")
+#         return f"I'm sorry, I encountered a critical error: {str(e)}. Please try again."
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 import os
 import logging
 from openai import OpenAI
 from dotenv import load_dotenv
 from app.db import execute_query
-from app.utils import get_stock_price, get_currency_exchange_rate
-import json # Ensure this is imported
+from app.utils import get_stock_price_from_api, get_currency_exchange_rate_from_api # Corrected imports
+import json
+import re
+from jsonschema import validate, ValidationError
 
 # Load environment variables
 load_dotenv()
@@ -1012,26 +1614,97 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 # Initialize OpenAI client
-# Ensure OPENAI_API_KEY is set in your .env file
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-# --- Define Agent Tools (Python functions - these are NOT directly callable by AI in this setup) ---
-# These functions are here for completeness and could be called by other parts of your backend
-# (e.g., directly by Flask API endpoints from the frontend forms), but not directly by the AI via tool-calling.
+# --- System Prompt Definition (CRITICAL for AI behavior) ---
+# This prompt instructs the AI on how to format its output when it wants to call a custom function.
+# It MUST be very precise.
+SYSTEM_PROMPT = """
+You are a personal finance chatbot. Your current user ID is {user_id}.
+Your primary goal is to help users manage their finances.
+
+When the user asks to perform a specific action, you MUST respond with a JSON object.
+The JSON object must contain an "action" key and other keys for its arguments.
+Here are the actions and their required JSON formats:
+
+1.  To add an expense:
+    {{"action": "add_expense", "amount": <float>, "category": "<string>", "description": "<string>", "expense_date": "<YYYY-MM-DD>"}}
+    Example: {{"action": "add_expense", "amount": 25.50, "category": "Food", "description": "Lunch", "expense_date": "2025-05-30"}}
+
+2.  To set a budget:
+    {{"action": "set_budget", "category": "<string>", "amount": <float>, "start_date": "<YYYY-MM-DD>", "end_date": "<YYYY-MM-DD>"}}
+    Example: {{"action": "set_budget", "category": "Groceries", "amount": 300.00, "start_date": "2025-06-01", "end_date": "2025-06-30"}}
+
+3.  To get stock price:
+    {{"action": "get_stock_price", "symbol": "<string>"}}
+    Example: {{"action": "get_stock_price", "symbol": "AAPL"}}
+
+4.  To get currency exchange rate:
+    {{"action": "get_currency_exchange_rate", "from_currency": "<string>", "to_currency": "<string>"}}
+    Example: {{"action": "get_currency_exchange_rate", "from_currency": "EUR", "to_currency": "USD"}}
+
+5.  For financial news or general tips (web search):
+    Respond with the original user query as plain text. The system will then perform a web search based on that text.
+
+6.  For information from saved documents (file search):
+    Respond with the original user query as plain text. The system will then perform a file search based on that text.
+
+If the user's request does not clearly map to one of these actions, or if you need more information, ask clarifying questions in plain text.
+Always use the provided user_id ({user_id}) when performing actions.
+"""
+
+# --- JSON Schemas for AI Output Validation (for parsing AI's generated JSON) ---
+ADD_EXPENSE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "action": {"type": "string", "const": "add_expense"},
+        "amount": {"type": "number"},
+        "category": {"type": "string"},
+        "description": {"type": "string"},
+        "expense_date": {"type": "string", "format": "date", "pattern": r"^\d{4}-\d{2}-\d{2}$"}
+    },
+    "required": ["action", "amount", "category", "expense_date"],
+    "additionalProperties": False
+}
+
+SET_BUDGET_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "action": {"type": "string", "const": "set_budget"},
+        "category": {"type": "string"},
+        "amount": {"type": "number"},
+        "start_date": {"type": "string", "format": "date", "pattern": r"^\d{4}-\d{2}-\d{2}$"},
+        "end_date": {"type": "string", "format": "date", "pattern": r"^\d{4}-\d{2}-\d{2}$"}
+    },
+    "required": ["action", "category", "amount", "start_date", "end_date"],
+    "additionalProperties": False
+}
+
+GET_STOCK_PRICE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "action": {"type": "string", "const": "get_stock_price"},
+        "symbol": {"type": "string"}
+    },
+    "required": ["action", "symbol"],
+    "additionalProperties": False
+}
+
+GET_CURRENCY_RATE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "action": {"type": "string", "const": "get_currency_exchange_rate"},
+        "from_currency": {"type": "string"},
+        "to_currency": {"type": "string"}
+    },
+    "required": ["action", "from_currency", "to_currency"],
+    "additionalProperties": False
+}
+
+# --- Custom Function Implementations (these are called by our Python code, not AI directly) ---
 
 def add_expense_tool(user_id: int, amount: float, category: str, description: str, expense_date: str):
-    """
-    Adds a new personal expense for a user.
-    Args:
-        user_id (int): The ID of the user.
-        amount (float): The amount of the expense.
-        category (str): The category of the expense (e.g., 'Food', 'Transport', 'Utilities').
-        description (str): A brief description of the expense.
-        expense_date (str): The date of the expense inYYYY-MM-DD format.
-    Returns:
-        dict: A dictionary indicating success or failure.
-    """
-    logger.info("Agent tool: add_expense called with user_id=%s, amount=%s, category=%s, date=%s",
+    logger.info("Custom tool: add_expense called with user_id=%s, amount=%s, category=%s, date=%s",
                 user_id, amount, category, expense_date)
     try:
         query = "INSERT INTO T_SNG_Expenses (user_id, amount, category, description, expense_date) VALUES (?, ?, ?, ?, ?)"
@@ -1042,18 +1715,7 @@ def add_expense_tool(user_id: int, amount: float, category: str, description: st
         return {"status": "error", "message": f"Failed to add expense: {str(e)}"}
 
 def set_budget_tool(user_id: int, category: str, amount: float, start_date: str, end_date: str):
-    """
-    Sets a new budget for a user in a specific category for a given period.
-    Args:
-        user_id (int): The ID of the user.
-        category (str): The category for the budget (e.g., 'Groceries', 'Entertainment').
-        amount (float): The budgeted amount.
-        start_date (str): The start date of the budget inYYYY-MM-DD format.
-        end_date (str): The end date of the budget inYYYY-MM-DD format.
-    Returns:
-        dict: A dictionary indicating success or failure.
-    """
-    logger.info("Agent tool: set_budget called with user_id=%s, category=%s, amount=%s, start=%s, end=%s",
+    logger.info("Custom tool: set_budget called with user_id=%s, category=%s, amount=%s, start=%s, end=%s",
                 user_id, category, amount, start_date, end_date)
     try:
         query = "INSERT INTO T_SNG_Budgets (user_id, category, amount, start_date, end_date) VALUES (?, ?, ?, ?, ?)"
@@ -1064,17 +1726,7 @@ def set_budget_tool(user_id: int, category: str, amount: float, start_date: str,
         return {"status": "error", "message": f"Failed to set budget: {str(e)}"}
 
 def get_expenses_tool(user_id: int, category: str = None, start_date: str = None, end_date: str = None):
-    """
-    Retrieves a user's expenses, optionally filtered by category and date range.
-    Args:
-        user_id (int): The ID of the user.
-        category (str, optional): Filter expenses by category.
-        start_date (str, optional): Start date for filtering inYYYY-MM-DD format.
-        end_date (str, optional): End date for filtering inYYYY-MM-DD format.
-    Returns:
-        list: A list of expense dictionaries.
-    """
-    logger.info("Agent tool: get_expenses called for user %s, category=%s, start=%s, end=%s",
+    logger.info("Custom tool: get_expenses called for user %s, category=%s, start=%s, end=%s",
                 user_id, category, start_date, end_date)
     try:
         sql_query = "SELECT expense_id, user_id, amount, category, description, expense_date FROM T_SNG_Expenses WHERE user_id = ?"
@@ -1093,7 +1745,7 @@ def get_expenses_tool(user_id: int, category: str = None, start_date: str = None
         expenses = execute_query(sql_query, tuple(params), fetch_type='all')
         if expenses:
             for exp in expenses:
-                if 'expense_date' in exp and isinstance(exp['expense_date'], (type(None), type(exp['expense_date']))): # Check if it's a date object
+                if 'expense_date' in exp and isinstance(exp['expense_date'], (type(None), type(exp['expense_date']))):
                     exp['expense_date'] = exp['expense_date'].isoformat() if exp['expense_date'] else None
             logger.info("Fetched %d expenses for user %s.", len(expenses), user_id)
             return {"status": "success", "data": expenses}
@@ -1114,7 +1766,7 @@ def get_budget_status_tool(user_id: int, category: str = None):
     Returns:
         list: A list of budget status dictionaries.
     """
-    logger.info("Agent tool: get_budget_status called for user %s, category=%s", user_id, category)
+    logger.info("Custom tool: get_budget_status called for user %s, category=%s", user_id, category)
     try:
         sql_query = """
         SELECT user_id, category, budgeted_amount, actual_spent, remaining_amount, start_date, end_date
@@ -1142,35 +1794,27 @@ def get_budget_status_tool(user_id: int, category: str = None):
         logger.exception("Error in get_budget_status_tool:")
         return {"status": "error", "message": f"Failed to retrieve budget status: {str(e)}"}
 
-def get_stock_price_tool(symbol: str):
+def get_stock_price_tool(symbol: str): # This function will be called by our parsing logic
     """
-    Retrieves the current stock price for a given stock ticker symbol (e.g., AAPL, GOOGL).
-    Args:
-        symbol (str): The stock ticker symbol.
-    Returns:
-        dict: A dictionary containing the stock symbol, price, and currency, or an error message.
+    Retrieves the current stock price for a given symbol.
     """
-    logger.info("Agent tool: get_stock_price_tool called for symbol: %s", symbol)
-    return get_stock_price(symbol)
+    logger.info("Custom tool: get_stock_price_tool (wrapper) called for symbol: %s", symbol)
+    return get_stock_price_from_api(symbol) # Call the actual API function
 
-def get_currency_exchange_rate_tool(from_currency: str, to_currency: str):
+def get_currency_exchange_rate_tool(from_currency: str, to_currency: str): # This function will be called by our parsing logic
     """
-    Retrieves the current exchange rate between two currency codes (e.g., USD, EUR, LKR).
-    Args:
-        from_currency (str): The currency code to convert from (e.g., "USD").
-        to_currency (str): The currency code to convert to (e.g., "LKR").
-    Returns:
-        dict: A dictionary containing the 'from' currency, 'to' currency, and the exchange rate, or an error message.
+    Retrieves the current exchange rate between two currencies.
     """
-    logger.info("Agent tool: get_currency_exchange_rate_tool called from %s to %s", from_currency, to_currency)
-    return get_currency_exchange_rate(from_currency, to_currency)
+    logger.info("Custom tool: get_currency_exchange_rate_tool (wrapper) called from %s to %s", from_currency, to_currency)
+    return get_currency_exchange_rate_from_api(from_currency, to_currency) # Call the actual API function
 
 # --- OpenAI Agent Orchestration ---
 
 def chat_with_agent(user_message: str, user_id: int):
     """
     Sends a user message to the OpenAI agent and gets a response.
-    The agent uses defined tools to answer queries.
+    The agent is instructed to output JSON for custom actions,
+    or plain text for web/file search.
     Args:
         user_message (str): The message from the user.
         user_id (int): The ID of the current user.
@@ -1179,39 +1823,98 @@ def chat_with_agent(user_message: str, user_id: int):
     """
     logger.info("Chat with agent: User %s message: %s", user_id, user_message)
 
+    # The full system prompt with instructions for AI-generated JSON
+    full_system_prompt = SYSTEM_PROMPT.format(user_id=user_id)
+
     # Define the tools available to the Responses API call
     # IMPORTANT: Only native OpenAI tools (web_search_preview, file_search, code_interpreter)
     # can be directly passed to client.responses.create in this manner.
-    # Custom function tools are NOT supported here.
-    all_tools_for_openai = [
+    # Our custom functions are NOT listed here.
+    all_native_openai_tools = [
         {"type": "web_search_preview"}, # As per documentation
         {"type": "file_search", "vector_store_ids": ["vs_6836df8f306881919cf54b2d7e654e4f"]} # As per documentation
     ]
 
-    # The 'messages' list is used for the model's internal context and conversation flow.
-    # The 'input' parameter is the specific user query for the current turn.
-    # For client.responses.create, the conversation history is implicitly handled by the model
-    # based on the 'input' and the tools.
-    # We will use the user_message as the primary input.
-
     try:
-        # Call the Responses API
+        # Step 1: Call the Responses API. The AI processes the user message and system prompt.
+        # It will either generate plain text or the instructed JSON for custom actions,
+        # or it will trigger native web/file search.
         response_obj = client.responses.create(
             model="gpt-4o-mini", # Use a model that supports these tools
-            input=user_message, # The explicit input for the current turn
-            tools=all_tools_for_openai,
-            tool_choice="auto" # Allow the model to choose a tool or respond directly
+            input=f"{full_system_prompt}\nUser: {user_message}", # Combine prompt and user message
+            tools=all_native_openai_tools, # Only native tools here
+            tool_choice="auto" # Allow the model to choose native tools or respond directly
         )
 
-        # Process the outputs from the Responses API
-        final_response_content = ""
-        
-        # Iterate through the output items to find the assistant's message
+        final_response_content = "I couldn't generate a response." # Default error message
+
+        # Step 2: Process the outputs from the Responses API
         for output_item in response_obj.output:
             if output_item.type == "message" and output_item.role == "assistant":
-                # This is the model's direct text response
-                final_response_content = output_item.content[0].text
-                # Handle citations if present in output_item.content[0].annotations
+                ai_generated_text = output_item.content[0].text
+                logger.info("AI generated raw text: %s", ai_generated_text)
+
+                # --- Attempt to parse AI's text output as a custom function call (the workaround) ---
+                try:
+                    # Use regex to find a potential JSON object in the AI's response
+                    # This regex tries to find the first JSON-like string starting with { and ending with }
+                    json_match = re.search(r'\{[^{}]*?\}', ai_generated_text, re.DOTALL)
+                    
+                    if json_match:
+                        potential_json = json_match.group(0)
+                        ai_action = json.loads(potential_json)
+                        logger.info("Attempted to parse AI output as JSON action: %s", ai_action)
+
+                        # Map parsed action to our internal Python functions and validate against schema
+                        action_type = ai_action.get("action")
+                        
+                        if action_type == "add_expense":
+                            validate(instance=ai_action, schema=ADD_EXPENSE_SCHEMA)
+                            # Pass only relevant args, excluding 'action'
+                            result = add_expense_tool(user_id=user_id, **{k: v for k, v in ai_action.items() if k != 'action'})
+                            if result.get('status') == 'success':
+                                final_response_content = f"Expense added successfully! {result.get('message', '')}"
+                            else:
+                                final_response_content = f"Error adding expense: {result.get('message', 'Unknown error')}"
+
+                        elif action_type == "set_budget":
+                            validate(instance=ai_action, schema=SET_BUDGET_SCHEMA)
+                            result = set_budget_tool(user_id=user_id, **{k: v for k, v in ai_action.items() if k != 'action'})
+                            if result.get('status') == 'success':
+                                final_response_content = f"Budget set successfully! {result.get('message', '')}"
+                            else:
+                                final_response_content = f"Error setting budget: {result.get('message', 'Unknown error')}"
+
+                        elif action_type == "get_stock_price":
+                            validate(instance=ai_action, schema=GET_STOCK_PRICE_SCHEMA)
+                            result = get_stock_price_tool(**{k: v for k, v in ai_action.items() if k != 'action'})
+                            if result.get('error'):
+                                final_response_content = f"Could not get stock price: {result['error']}"
+                            else:
+                                final_response_content = f"The current price of {result['symbol']} is {result['price']} {result['currency']}."
+
+                        elif action_type == "get_currency_exchange_rate":
+                            validate(instance=ai_action, schema=GET_CURRENCY_RATE_SCHEMA)
+                            result = get_currency_exchange_rate_tool(**{k: v for k, v in ai_action.items() if k != 'action'})
+                            if result.get('error'):
+                                final_response_content = f"Could not get exchange rate: {result['error']}"
+                            else:
+                                final_response_content = f"The exchange rate from {result['from']} to {result['to']} is {result['rate']}."
+                        else:
+                            # If it's JSON but not a recognized action, treat as plain text
+                            final_response_content = ai_generated_text
+                    else:
+                        # No JSON found, treat as plain text
+                        final_response_content = ai_generated_text
+
+                except (json.JSONDecodeError, ValidationError) as parse_error:
+                    logger.warning("AI did not output valid JSON for action or schema mismatch. Raw AI response: '%s' | Error: %s", ai_generated_text, parse_error)
+                    final_response_content = f"I received an unexpected format from the AI. Please try rephrasing your request for custom actions. Original AI response: '{ai_generated_text}'"
+                except Exception as e:
+                    logger.exception("Error during custom action execution after AI parse:")
+                    final_response_content = f"An internal error occurred while processing your request: {str(e)}. Please try again."
+
+                # Handle citations from native tools if present in output_item.content[0].annotations
                 if output_item.content[0].annotations:
                     citations = []
                     for annotation in output_item.content[0].annotations:
@@ -1221,20 +1924,26 @@ def chat_with_agent(user_message: str, user_id: int):
                             citations.append(f" [File: {annotation.filename}]")
                     if citations:
                         final_response_content += "".join(citations)
-                break # Found the final message, exit loop
-            
-            # Log tool calls made by OpenAI's native tools (for debugging)
+                
+                break # Processed the main message, exit loop
+
+            # Log native tool calls made by OpenAI (for debugging)
             elif output_item.type == "web_search_call":
                 logger.info("Web search tool called by OpenAI. Status: %s", output_item.status)
             elif output_item.type == "file_search_call":
                 logger.info("File search tool called by OpenAI. Status: %s", output_item.status)
-            # Note: client.responses.create does not return 'tool_code' for custom functions.
-            # If the model attempts to call a custom function, it won't be executed here.
-
-        return final_response_content if final_response_content else "I couldn't generate a response."
+        
+        return final_response_content
 
     except Exception as e:
-        logger.exception("Error in chat_with_agent:")
-        # Provide a more informative error for the user
-        return f"I'm sorry, I encountered an error: {str(e)}. This might be due to an issue with the AI's tool usage or API configuration. Please try again."
+        logger.exception("Error in chat_with_agent (top level):")
+        return f"I'm sorry, I encountered a critical error: {str(e)}. Please try again."
+
+
+
+
+
+
+
+
 
